@@ -710,7 +710,22 @@ def add_history(
 def clean_text(value: Any) -> str:
     if value is None:
         return ""
+    try:
+        if bool(pd.isna(value)):
+            return ""
+    except (TypeError, ValueError):
+        pass
     return str(value).strip()
+
+
+def safe_int(value: Any, default: int = 0) -> int:
+    text = clean_text(value)
+    if not text:
+        return default
+    try:
+        return int(float(text.replace(",", ".")))
+    except ValueError:
+        return default
 
 
 def only_digits(value: Any) -> str:
@@ -2139,7 +2154,7 @@ def build_vacation_payload(
         "data_retorno": date_to_db(data_retorno),
         "dias": max(days, 0),
         "status": status,
-        "aviso_dias": int(aviso_dias),
+        "aviso_dias": safe_int(aviso_dias, 30),
         "observacoes": clean_text(observacoes),
     }
 
@@ -2160,7 +2175,7 @@ def validate_vacation(payload: dict[str, Any]) -> list[str]:
         errors.append("A data final das férias não pode ser anterior ao início.")
     if end and return_date and return_date < end:
         errors.append("A data de retorno não pode ser anterior ao fim das férias.")
-    if int(payload.get("aviso_dias") or 0) < 0:
+    if safe_int(payload.get("aviso_dias"), 0) < 0:
         errors.append("O aviso em dias não pode ser negativo.")
     return errors
 
@@ -2323,7 +2338,7 @@ def render_vacation_form(
         "Avisar antes",
         min_value=0,
         max_value=180,
-        value=int(vacation.get("aviso_dias") or 30),
+        value=safe_int(vacation.get("aviso_dias"), 30),
         step=1,
         key=f"{prefix}_vacation_notice",
     )
@@ -2360,7 +2375,7 @@ def render_vacation_form(
         data_fim,
         data_retorno,
         status,
-        int(aviso_dias),
+        safe_int(aviso_dias, 30),
         observacoes,
     )
     return payload, update_status
@@ -2459,7 +2474,7 @@ def build_leave_payload(
         "data_previsao_retorno": date_to_db(data_previsao_retorno),
         "data_retorno": date_to_db(data_retorno),
         "status": status,
-        "aviso_dias": int(aviso_dias),
+        "aviso_dias": safe_int(aviso_dias, 7),
         "motivo": clean_text(motivo),
         "documento": clean_text(documento),
         "observacoes": clean_text(observacoes),
@@ -2482,7 +2497,7 @@ def validate_leave(payload: dict[str, Any]) -> list[str]:
         errors.append("A previsão de retorno não pode ser anterior ao início.")
     if start and actual_return and actual_return < start:
         errors.append("A data de retorno não pode ser anterior ao início.")
-    if int(payload.get("aviso_dias") or 0) < 0:
+    if safe_int(payload.get("aviso_dias"), 0) < 0:
         errors.append("O aviso em dias não pode ser negativo.")
     return errors
 
@@ -2635,7 +2650,7 @@ def render_leave_form(
         "Avisar antes",
         min_value=0,
         max_value=180,
-        value=int(leave.get("aviso_dias") or 7),
+        value=safe_int(leave.get("aviso_dias"), 7),
         step=1,
         key=f"{prefix}_leave_notice",
     )
@@ -2702,7 +2717,7 @@ def render_leave_form(
         data_previsao_retorno,
         data_retorno,
         status,
-        int(aviso_dias),
+        safe_int(aviso_dias, 7),
         motivo,
         documento,
         observacoes,
