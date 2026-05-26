@@ -544,6 +544,11 @@ def get_connection() -> DbConnection:
 
 
 def read_sql(sql: str, conn: DbConnection, params: Any = None) -> pd.DataFrame:
+    if conn.backend == "postgres":
+        cursor = conn.execute(sql, params)
+        columns = [column.name for column in cursor.description or []]
+        rows = cursor.fetchall()
+        return pd.DataFrame([dict(row) for row in rows], columns=columns)
     return pd.read_sql_query(convert_sql(sql), conn.raw, params=params)
 
 
@@ -1490,6 +1495,7 @@ def render_header() -> None:
     logo = logo_data_uri()
     logo_html = f'<img class="jr-header-logo" src="{logo}" alt="JR Ferragens e Madeiras">' if logo else ""
     today = date.today().strftime("%d/%m/%Y")
+    db_label = "Banco online" if using_postgres() else "Banco local"
     header_html = (
         '<div class="jr-header">'
         '<div>'
@@ -1499,7 +1505,7 @@ def render_header() -> None:
         '</div>'
         '<div class="jr-header-actions">'
         f'<span class="jr-pill">Hoje: {today}</span>'
-        '<span class="jr-pill jr-pill-green">Banco local</span>'
+        f'<span class="jr-pill jr-pill-green">{db_label}</span>'
         '</div>'
         f'{logo_html}'
         '</div>'
