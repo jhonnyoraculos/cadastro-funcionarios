@@ -889,6 +889,42 @@ def terminate_employee(employee_id: str, data_desligamento: date, motivo: str, o
     clear_cached_data()
 
 
+def reactivate_employee(employee_id: str, observacoes: str) -> None:
+    now = datetime.now().isoformat(timespec="seconds")
+    note = clean_text(observacoes)
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE employees
+            SET status = 'Ativo',
+                data_desligamento = NULL,
+                motivo_desligamento = NULL,
+                observacoes = CASE
+                    WHEN ? = '' THEN observacoes
+                    WHEN COALESCE(observacoes, '') = '' THEN ?
+                    ELSE observacoes || CHAR(10) || ?
+                END,
+                atualizado_em = ?
+            WHERE id = ?
+            """,
+            (
+                note,
+                f"Reativação: {note}" if note else "",
+                f"Reativação: {note}" if note else "",
+                now,
+                employee_id,
+            ),
+        )
+        add_history(
+            conn,
+            employee_id,
+            "Reativação",
+            "Funcionário reativado",
+            note or "Sem observação.",
+        )
+    clear_cached_data()
+
+
 def days_between_today(value: Any) -> int | None:
     parsed = parse_iso_date(value)
     if not parsed:
@@ -2877,6 +2913,101 @@ def render_termination_form(employee_id: str, employee: dict[str, Any]) -> None:
             st.rerun()
 
 
+def filter_terminated_employees(df: pd.DataFrame, term: str) -> pd.DataFrame:
+    if df.empty:
+        return df
+
+    terminated = df[df["status"] == "Desligado"].copy()
+    if not term:
+        return terminated
+
+    term_clean = term.lower().strip()
+    term_digits = only_digits(term)
+
+    def matches(row: pd.Series) -> bool:
+        searchable = " ".join(
+            clean_text(row.get(field)).lower()
+            for field in ["nome", "cpf", "cargo", "setor", "matricula", "motivo_desligamento"]
+        )
+        if term_clean in searchable:
+            return True
+        return bool(term_digits and term_digits in only_digits(row.get("cpf")))
+
+    return terminated[terminated.apply(matches, axis=1)]
+
+
+def render_terminated_table(df: pd.DataFrame) -> None:
+    if df.empty:
+        st.info("Nenhum funcionário desligado encontrado.")
+        return
+
+    view = df.copy()
+    view["CPF"] = view["cpf"].apply(format_cpf)
+    view["Desligamento"] = view["data_desligamento"].apply(format_date_br)
+    view = view.rename(
+        columns={
+            "nome": "Nome",
+            "cargo": "Função",
+            "setor": "Setor",
+            "matricula": "Matrícula",
+            "motivo_desligamento": "Motivo",
+        }
+    )
+    st.dataframe(
+        view[["Nome", "CPF", "Função", "Setor", "Matrícula", "Desligamento", "Motivo"]],
+        hide_index=True,
+        width="stretch",
+    )
+
+
+def render_reactivation_form(employee_id: str) -> None:
+    with st.expander("Reativar funcionário"):
+        with st.form("reactivation_form", clear_on_submit=False):
+            observacoes = st.text_area(
+                "Observação da reativação",
+                placeholder="Ex.: retornou ao quadro em nova contratação, mesmo cargo, retorno aprovado pela gerência.",
+                height=90,
+            )
+            confirmacao = st.text_input("Digite REATIVAR para confirmar")
+            submitted = st.form_submit_button("Reativar funcionário", type="primary", width="stretch")
+
+        if submitted:
+            if confirmacao.strip().upper() != "REATIVAR":
+                st.error("Digite REATIVAR para confirmar.")
+                return
+            reactivate_employee(employee_id, observacoes)
+            st.success("Funcionário reativado com sucesso.")
+            st.rerun()
+
+
+def render_terminated_tab(df: pd.DataFrame) -> None:
+    st.markdown('<div class="jr-section-title">Desligados / demitidos</div>', unsafe_allow_html=True)
+    term = st.text_input("Pesquisar por nome ou CPF", placeholder="Digite nome, CPF, função, setor ou motivo")
+    terminated = filter_terminated_employees(df, term)
+
+    col1, col2 = st.columns(2)
+    col1.metric("Desligados cadastrados", int((df["status"] == "Desligado").sum()) if not df.empty else 0)
+    col2.metric("Resultado da busca", len(terminated))
+
+    render_terminated_table(terminated)
+
+    if terminated.empty:
+        return
+
+    labels = {
+        row["id"]: f"{row['nome']} | {format_cpf(row['cpf'])} | {format_date_br(row.get('data_desligamento')) or 'sem data'}"
+        for _, row in terminated.iterrows()
+    }
+    selected_id = st.selectbox(
+        "Abrir desligado",
+        options=terminated["id"].tolist(),
+        format_func=lambda value: labels.get(value, value),
+        key="terminated_selected_employee",
+    )
+    render_employee_details(selected_id)
+    render_reactivation_form(selected_id)
+
+
 def render_edit_tab(df: pd.DataFrame) -> None:
     if df.empty:
         st.info("Cadastre o primeiro funcionário para habilitar a edição.")
@@ -2920,8 +3051,8 @@ def main() -> None:
     render_header()
     render_overview(df, vacations, leaves)
 
-    tab_summary, tab_create, tab_search, tab_vacations, tab_leaves, tab_reports, tab_edit = st.tabs(
-        ["Resumo", "Cadastrar", "Consultar", "Férias", "Afastamentos", "Relatórios", "Editar"]
+    tab_summary, tab_create, tab_search, tab_vacations, tab_leaves, tab_terminated, tab_reports, tab_edit = st.tabs(
+        ["Resumo", "Cadastrar", "Consultar", "Férias", "Afastamentos", "Desligados", "Relatórios", "Editar"]
     )
     with tab_summary:
         render_summary_tab(df, vacations, leaves)
@@ -2933,6 +3064,8 @@ def main() -> None:
         render_vacations_tab(df, vacations)
     with tab_leaves:
         render_leaves_tab(df, leaves)
+    with tab_terminated:
+        render_terminated_tab(df)
     with tab_reports:
         render_reports_tab(df, vacations, leaves)
     with tab_edit:
