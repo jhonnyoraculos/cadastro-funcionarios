@@ -790,6 +790,17 @@ def clear_cached_data() -> None:
     st.cache_data.clear()
 
 
+def normalize_employee_frame(df: pd.DataFrame) -> pd.DataFrame:
+    result = df.copy()
+    if "contatos_familiares" not in result.columns:
+        result["contatos_familiares"] = 0
+    result["contatos_familiares"] = pd.to_numeric(
+        result["contatos_familiares"],
+        errors="coerce",
+    ).fillna(0).astype(int)
+    return result
+
+
 def cpf_exists(cpf: str, exclude_id: str | None = None) -> bool:
     with get_connection() as conn:
         if exclude_id:
@@ -805,7 +816,7 @@ def cpf_exists(cpf: str, exclude_id: str | None = None) -> bool:
 @st.cache_data(show_spinner=False, ttl=60)
 def load_employees() -> pd.DataFrame:
     with get_connection() as conn:
-        return read_sql(
+        df = read_sql(
             """
             SELECT
                 e.*,
@@ -817,6 +828,7 @@ def load_employees() -> pd.DataFrame:
             """,
             conn,
         )
+    return normalize_employee_frame(df)
 
 
 @st.cache_data(show_spinner=False, ttl=60)
@@ -1485,6 +1497,7 @@ def render_overview(
     vacations: pd.DataFrame,
     leaves: pd.DataFrame,
 ) -> None:
+    df = normalize_employee_frame(df)
     active_count = int((df["status"] == "Ativo").sum()) if not df.empty else 0
     family_contacts = int(df["contatos_familiares"].sum()) if not df.empty else 0
 
@@ -1933,6 +1946,7 @@ def filter_employees(df: pd.DataFrame, term: str, statuses: list[str], sectors: 
 
 
 def render_table(df: pd.DataFrame) -> None:
+    df = normalize_employee_frame(df)
     if df.empty:
         st.info("Nenhum funcionário encontrado.")
         return
@@ -2059,6 +2073,7 @@ def render_employee_details(employee_id: str) -> None:
 
 
 def render_search_tab(df: pd.DataFrame) -> None:
+    df = normalize_employee_frame(df)
     col1, col2, col3 = st.columns([1.5, 1.1, 1])
     term = col1.text_input("Buscar", placeholder="Nome, CPF, função, setor ou matrícula")
     statuses = col2.multiselect("Status", STATUS_OPTIONS, default=["Ativo"])
@@ -3044,7 +3059,7 @@ def render_edit_tab(df: pd.DataFrame) -> None:
 def main() -> None:
     apply_theme()
     init_db()
-    df = load_employees()
+    df = normalize_employee_frame(load_employees())
     vacations = load_vacations()
     leaves = load_leave_records()
 
