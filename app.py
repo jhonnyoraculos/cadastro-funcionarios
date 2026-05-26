@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import os
 import re
 import sqlite3
 import uuid
@@ -10,6 +11,13 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
+
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:  # Local fallback when Postgres support is not installed yet.
+    psycopg = None
+    dict_row = None
 
 
 APP_DIR = Path(__file__).resolve().parent
@@ -468,14 +476,83 @@ def apply_theme() -> None:
     )
 
 
-def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+def get_database_url() -> str:
+    env_url = os.getenv("DATABASE_URL", "").strip()
+    if env_url:
+        return env_url
+    try:
+        return str(st.secrets.get("DATABASE_URL", "")).strip()
+    except Exception:
+        return ""
 
 
-def init_db() -> None:
+def using_postgres() -> bool:
+    return bool(get_database_url())
+
+
+def convert_sql(sql: str) -> str:
+    if not using_postgres():
+        return sql
+    converted = re.sub(r"\s+COLLATE\s+NOCASE", "", sql, flags=re.IGNORECASE)
+    converted = re.sub(r"CHAR\s*\(\s*10\s*\)", "CHR(10)", converted, flags=re.IGNORECASE)
+    converted = re.sub(r":([A-Za-z_][A-Za-z0-9_]*)", r"%(\1)s", converted)
+    converted = converted.replace("?", "%s")
+    return converted
+
+
+class DbConnection:
+    def __init__(self) -> None:
+        self.backend = "postgres" if using_postgres() else "sqlite"
+        if self.backend == "postgres":
+            if psycopg is None:
+                raise RuntimeError("Instale psycopg[binary] para usar DATABASE_URL/Postgres.")
+            self.raw = psycopg.connect(get_database_url(), row_factory=dict_row)
+        else:
+            self.raw = sqlite3.connect(DB_PATH)
+            self.raw.row_factory = sqlite3.Row
+            self.raw.execute("PRAGMA foreign_keys = ON")
+
+    def __enter__(self) -> "DbConnection":
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
+        if exc_type:
+            self.raw.rollback()
+        else:
+            self.raw.commit()
+        self.raw.close()
+
+    def execute(self, sql: str, params: Any = None) -> Any:
+        sql = convert_sql(sql)
+        if params is None:
+            return self.raw.execute(sql)
+        return self.raw.execute(sql, params)
+
+    def executemany(self, sql: str, params: Any) -> Any:
+        return self.raw.executemany(convert_sql(sql), params)
+
+    def executescript(self, script: str) -> None:
+        if self.backend == "sqlite":
+            self.raw.executescript(script)
+            return
+        for statement in [part.strip() for part in script.split(";") if part.strip()]:
+            self.execute(statement)
+
+
+def get_connection() -> DbConnection:
+    return DbConnection()
+
+
+def read_sql(sql: str, conn: DbConnection, params: Any = None) -> pd.DataFrame:
+    return pd.read_sql_query(convert_sql(sql), conn.raw, params=params)
+
+
+def db_cache_key() -> str:
+    return "postgres" if using_postgres() else str(DB_PATH)
+
+
+@st.cache_resource(show_spinner=False)
+def init_db_once(cache_key: str) -> None:
     with get_connection() as conn:
         conn.executescript(
             """
@@ -582,8 +659,22 @@ def init_db() -> None:
         ensure_employee_columns(conn)
 
 
-def ensure_employee_columns(conn: sqlite3.Connection) -> None:
-    existing = {row["name"] for row in conn.execute("PRAGMA table_info(employees)").fetchall()}
+def init_db() -> None:
+    init_db_once(db_cache_key())
+
+
+def ensure_employee_columns(conn: DbConnection) -> None:
+    if using_postgres():
+        rows = conn.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'employees'
+            """
+        ).fetchall()
+        existing = {row["column_name"] for row in rows}
+    else:
+        existing = {row["name"] for row in conn.execute("PRAGMA table_info(employees)").fetchall()}
     columns = {
         "data_desligamento": "TEXT",
         "motivo_desligamento": "TEXT",
@@ -594,7 +685,7 @@ def ensure_employee_columns(conn: sqlite3.Connection) -> None:
 
 
 def add_history(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     employee_id: str,
     evento: str,
     descricao: str,
@@ -714,7 +805,7 @@ def cpf_exists(cpf: str, exclude_id: str | None = None) -> bool:
 @st.cache_data(show_spinner=False, ttl=60)
 def load_employees() -> pd.DataFrame:
     with get_connection() as conn:
-        return pd.read_sql_query(
+        return read_sql(
             """
             SELECT
                 e.*,
@@ -731,7 +822,7 @@ def load_employees() -> pd.DataFrame:
 @st.cache_data(show_spinner=False, ttl=60)
 def load_employee_history(employee_id: str) -> pd.DataFrame:
     with get_connection() as conn:
-        return pd.read_sql_query(
+        return read_sql(
             """
             SELECT evento, descricao, detalhes, criado_em
             FROM employee_history
@@ -871,7 +962,7 @@ def calculated_leave_situation(row: pd.Series | dict[str, Any]) -> str:
 @st.cache_data(show_spinner=False, ttl=60)
 def load_vacations() -> pd.DataFrame:
     with get_connection() as conn:
-        df = pd.read_sql_query(
+        df = read_sql(
             """
             SELECT
                 v.*,
@@ -892,7 +983,7 @@ def load_vacations() -> pd.DataFrame:
 @st.cache_data(show_spinner=False, ttl=60)
 def load_leave_records() -> pd.DataFrame:
     with get_connection() as conn:
-        df = pd.read_sql_query(
+        df = read_sql(
             """
             SELECT
                 l.*,
@@ -1666,6 +1757,7 @@ def ensure_report_columns(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     return report[columns]
 
 
+@st.cache_data(show_spinner=False, ttl=600)
 def make_pdf_bytes(title: str, df: pd.DataFrame, columns: list[str]) -> bytes:
     from io import BytesIO
 

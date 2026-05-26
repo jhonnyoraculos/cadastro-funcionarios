@@ -12,7 +12,18 @@ Ou abra o arquivo `rodar_site.bat`.
 
 ## Dados
 
-O app cria automaticamente o banco local `funcionarios.db` na mesma pasta. Ele salva:
+O app usa Postgres/Neon quando `DATABASE_URL` estiver configurada nos Secrets do Streamlit.
+Sem `DATABASE_URL`, ele usa o banco local `funcionarios.db` como fallback.
+
+No Streamlit Cloud, configure em **Settings > Secrets**:
+
+```toml
+DATABASE_URL = "postgresql://usuario:senha@host/neondb?sslmode=require"
+```
+
+Depois reinicie o app.
+
+Ele salva:
 
 - dados pessoais;
 - CPF com validação;
