@@ -478,6 +478,134 @@ def apply_theme() -> None:
             margin-top: 0.45rem;
         }
 
+        .jr-summary-section {
+            margin: 0.65rem 0 1.15rem 0;
+        }
+
+        .jr-summary-heading {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 0.65rem;
+        }
+
+        .jr-summary-title {
+            color: var(--jr-ink);
+            font-size: 1rem;
+            font-weight: 850;
+        }
+
+        .jr-summary-count {
+            color: var(--jr-muted);
+            font-size: 0.78rem;
+            font-weight: 800;
+            background: rgba(255, 255, 255, 0.62);
+            border: 1px solid rgba(255, 255, 255, 0.74);
+            border-radius: 999px;
+            padding: 0.22rem 0.58rem;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.70);
+        }
+
+        .jr-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.74rem;
+        }
+
+        .jr-summary-grid-wide {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .jr-summary-card {
+            position: relative;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.74);
+            border: 1px solid rgba(255, 255, 255, 0.78);
+            border-radius: 13px;
+            padding: 0.82rem 0.88rem;
+            min-height: 116px;
+            box-shadow: var(--jr-shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.80);
+            backdrop-filter: blur(22px) saturate(145%);
+            -webkit-backdrop-filter: blur(22px) saturate(145%);
+            transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+        }
+
+        .jr-summary-card:hover {
+            transform: translateY(-1px);
+            background: rgba(255, 255, 255, 0.90);
+            box-shadow: var(--jr-shadow-lift), inset 0 1px 0 rgba(255, 255, 255, 0.88);
+        }
+
+        .jr-summary-card::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: var(--summary-accent, var(--jr-red));
+        }
+
+        .jr-summary-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.7rem;
+        }
+
+        .jr-summary-name {
+            color: var(--jr-ink);
+            font-size: 0.96rem;
+            line-height: 1.18;
+            font-weight: 850;
+        }
+
+        .jr-summary-date {
+            flex: 0 0 auto;
+            color: var(--summary-accent, var(--jr-red));
+            font-size: 1.22rem;
+            line-height: 1;
+            font-weight: 950;
+            text-align: right;
+        }
+
+        .jr-summary-subtitle {
+            color: var(--jr-muted);
+            font-size: 0.82rem;
+            margin-top: 0.35rem;
+            line-height: 1.25;
+        }
+
+        .jr-summary-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.38rem;
+            margin-top: 0.72rem;
+        }
+
+        .jr-summary-chip {
+            color: var(--jr-ink);
+            background: rgba(237, 243, 255, 0.72);
+            border: 1px solid rgba(159, 176, 202, 0.28);
+            border-radius: 999px;
+            padding: 0.22rem 0.52rem;
+            font-size: 0.73rem;
+            font-weight: 760;
+        }
+
+        .jr-summary-empty {
+            background: rgba(255, 255, 255, 0.62);
+            border: 1px dashed rgba(159, 176, 202, 0.72);
+            border-radius: 13px;
+            padding: 0.95rem 1rem;
+            color: var(--jr-muted);
+            font-size: 0.9rem;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.74);
+            backdrop-filter: blur(18px) saturate(130%);
+            -webkit-backdrop-filter: blur(18px) saturate(130%);
+        }
+
         .jr-sidebar-title {
             color: var(--jr-ink);
             font-size: 1.02rem;
@@ -708,11 +836,20 @@ def apply_theme() -> None:
             .jr-kpi-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
+
+            .jr-summary-grid,
+            .jr-summary-grid-wide {
+                grid-template-columns: 1fr;
+            }
         }
 
         @media (min-width: 761px) and (max-width: 1100px) {
             .jr-kpi-grid {
                 grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+            .jr-summary-grid-wide {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
         </style>
@@ -2220,6 +2357,57 @@ def make_pdf_bytes(title: str, df: pd.DataFrame, columns: list[str]) -> bytes:
     return buffer.getvalue()
 
 
+def human_days(value: Any, suffix: str = "dias") -> str:
+    days = safe_int(value, 0)
+    if days == 0:
+        return "Hoje"
+    if days == 1:
+        return "Amanhã" if suffix == "dias" else f"1 {suffix}"
+    return f"{days} {suffix}"
+
+
+def summary_chip(value: Any) -> str:
+    text = clean_text(value)
+    if not text:
+        return ""
+    return f'<span class="jr-summary-chip">{html.escape(text)}</span>'
+
+
+def render_summary_cards(title: str, cards: list[dict[str, Any]], empty_text: str, wide: bool = False) -> None:
+    count_label = f"{len(cards)} registro" if len(cards) == 1 else f"{len(cards)} registros"
+    header = (
+        '<div class="jr-summary-section">'
+        '<div class="jr-summary-heading">'
+        f'<div class="jr-summary-title">{html.escape(title)}</div>'
+        f'<div class="jr-summary-count">{count_label}</div>'
+        '</div>'
+    )
+    if not cards:
+        st.markdown(f'{header}<div class="jr-summary-empty">{html.escape(empty_text)}</div></div>', unsafe_allow_html=True)
+        return
+
+    grid_class = "jr-summary-grid jr-summary-grid-wide" if wide else "jr-summary-grid"
+    items = []
+    for card in cards:
+        chips = "".join(summary_chip(value) for value in card.get("chips", []))
+        accent = html.escape(clean_text(card.get("accent")) or "#c8102e")
+        items.append(
+            f"""
+            <div class="jr-summary-card" style="--summary-accent:{accent};">
+                <div class="jr-summary-top">
+                    <div>
+                        <div class="jr-summary-name">{html.escape(clean_text(card.get("name")) or "-")}</div>
+                        <div class="jr-summary-subtitle">{html.escape(clean_text(card.get("subtitle")) or "-")}</div>
+                    </div>
+                    <div class="jr-summary-date">{html.escape(clean_text(card.get("date")) or "-")}</div>
+                </div>
+                <div class="jr-summary-meta">{chips}</div>
+            </div>
+            """
+        )
+    st.markdown(f'{header}<div class="{grid_class}">{"".join(items)}</div></div>', unsafe_allow_html=True)
+
+
 def render_summary_tab(
     df: pd.DataFrame,
     vacations: pd.DataFrame,
@@ -2233,40 +2421,66 @@ def render_summary_tab(
     upcoming_vacations = open_vacations[open_vacations["situacao_calculada"] == "Vai entrar"].copy() if not open_vacations.empty else pd.DataFrame()
     active_leaves = leaves[leaves["situacao_calculada"].isin(["Ativo", "Retorno vencido"])].copy() if not leaves.empty else pd.DataFrame()
 
+    birthday_cards = [
+        {
+            "name": row.get("Funcionário"),
+            "subtitle": f"{clean_text(row.get('Função')) or 'Funcionário'} em {clean_text(row.get('Setor')) or 'setor não informado'}",
+            "date": row.get("Aniversário"),
+            "chips": [human_days(row.get("Dias")), "Aniversário"],
+            "accent": "#c8102e",
+        }
+        for _, row in birthdays.head(6).iterrows()
+    ]
+    vacation_cards = []
+    if not upcoming_vacations.empty:
+        vacation_view = upcoming_vacations.copy()
+        vacation_view["dias_para_inicio"] = pd.to_numeric(vacation_view["dias_para_inicio"], errors="coerce").fillna(0)
+        for _, row in vacation_view.sort_values("data_inicio").head(6).iterrows():
+            vacation_cards.append(
+                {
+                    "name": row.get("funcionario"),
+                    "subtitle": f"{format_date_br(row.get('data_inicio'))} a {format_date_br(row.get('data_fim'))}",
+                    "date": format_date_br(row.get("data_inicio"))[:5],
+                    "chips": [row.get("setor"), human_days(row.get("dias_para_inicio")), "Férias"],
+                    "accent": "#243f91",
+                }
+            )
+    leave_cards = []
+    if not active_leaves.empty:
+        leave_view = active_leaves.copy()
+        leave_view["dias_para_retorno"] = pd.to_numeric(leave_view["dias_para_retorno"], errors="coerce")
+        for _, row in leave_view.sort_values("data_inicio").head(6).iterrows():
+            situation = clean_text(row.get("situacao_calculada"))
+            return_text = format_date_br(row.get("data_previsao_retorno")) or "sem previsão"
+            leave_cards.append(
+                {
+                    "name": row.get("funcionario"),
+                    "subtitle": f"{clean_text(row.get('tipo')) or 'Afastamento'} desde {format_date_br(row.get('data_inicio'))}",
+                    "date": return_text[:5] if return_text != "sem previsão" else "--",
+                    "chips": [situation, f"Retorno {return_text}", row.get("setor")],
+                    "accent": "#a16207" if situation == "Retorno vencido" else "#047857",
+                }
+            )
+    admission_cards = [
+        {
+            "name": row.get("Funcionário"),
+            "subtitle": f"{clean_text(row.get('Função')) or 'Função não informada'} em {clean_text(row.get('Setor')) or 'setor não informado'}",
+            "date": clean_text(row.get("Admissão"))[:5],
+            "chips": [f"{safe_int(row.get('Dias na empresa'), 0)} dia(s) na empresa", "Novo cadastro"],
+            "accent": "#047857",
+        }
+        for _, row in recent_admissions.head(6).iterrows()
+    ]
+
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("**Aniversariantes nos próximos 30 dias**")
-        if birthdays.empty:
-            st.info("Nenhum aniversário próximo.")
-        else:
-            st.dataframe(birthdays[["Funcionário", "Setor", "Aniversário", "Dias"]], hide_index=True, width="stretch")
-
-        st.markdown("**Férias próximas**")
-        if upcoming_vacations.empty:
-            st.info("Nenhuma férias próxima.")
-        else:
-            view = upcoming_vacations.copy()
-            view["Início"] = view["data_inicio"].apply(format_date_br)
-            view["Fim"] = view["data_fim"].apply(format_date_br)
-            view = view.rename(columns={"funcionario": "Funcionário", "setor": "Setor"})
-            st.dataframe(view[["Funcionário", "Setor", "Início", "Fim"]], hide_index=True, width="stretch")
+        render_summary_cards("Aniversariantes nos próximos 30 dias", birthday_cards, "Nenhum aniversário próximo.")
+        render_summary_cards("Férias próximas", vacation_cards, "Nenhuma férias próxima.")
 
     with col2:
-        st.markdown("**Afastamentos ativos**")
-        if active_leaves.empty:
-            st.info("Nenhum afastamento ativo.")
-        else:
-            view = active_leaves.copy()
-            view["Início"] = view["data_inicio"].apply(format_date_br)
-            view["Retorno previsto"] = view["data_previsao_retorno"].apply(format_date_br)
-            view = view.rename(columns={"funcionario": "Funcionário", "tipo": "Tipo"})
-            st.dataframe(view[["Funcionário", "Tipo", "Início", "Retorno previsto"]], hide_index=True, width="stretch")
+        render_summary_cards("Afastamentos ativos", leave_cards, "Nenhum afastamento ativo.")
 
-    st.markdown("**Admissões recentes**")
-    if recent_admissions.empty:
-        st.info("Nenhuma admissão nos últimos 90 dias.")
-    else:
-        st.dataframe(recent_admissions, hide_index=True, width="stretch")
+    render_summary_cards("Admissões recentes", admission_cards, "Nenhuma admissão nos últimos 90 dias.", wide=True)
 
 
 def render_create_tab() -> None:
