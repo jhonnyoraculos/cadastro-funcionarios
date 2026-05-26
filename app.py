@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import html
 import os
 import re
 import sqlite3
@@ -23,6 +24,7 @@ except ImportError:  # Local fallback when Postgres support is not installed yet
 APP_DIR = Path(__file__).resolve().parent
 DB_PATH = APP_DIR / "funcionarios.db"
 LOGO_PATH = APP_DIR / "logo-jr.png"
+SCHEMA_VERSION = "2026-05-26-rehire-probability"
 
 STATUS_OPTIONS = ["Ativo", "Afastado", "Férias", "Inativo", "Desligado"]
 ESTADO_CIVIL_OPTIONS = [
@@ -299,6 +301,139 @@ def apply_theme() -> None:
             margin: 0.2rem 0 0.85rem 0;
             font-size: 0.9rem;
             font-weight: 650;
+        }
+
+        .jr-rehire-card {
+            background: #ffffff;
+            border: 1px solid var(--jr-line);
+            border-radius: 10px;
+            padding: 0.95rem 1rem 1rem 1rem;
+            margin: 0.9rem 0 1rem 0;
+            box-shadow: 0 10px 24px rgba(16, 33, 63, 0.045);
+        }
+
+        .jr-rehire-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.7rem;
+            align-items: baseline;
+            margin-bottom: 0.65rem;
+        }
+
+        .jr-rehire-title {
+            color: var(--jr-ink);
+            font-size: 0.95rem;
+            font-weight: 850;
+        }
+
+        .jr-rehire-value {
+            color: var(--jr-ink);
+            font-size: 1.55rem;
+            line-height: 1;
+            font-weight: 900;
+        }
+
+        .jr-rehire-gauge {
+            position: relative;
+            width: min(100%, 360px);
+            height: 170px;
+            margin: 0.2rem auto 0 auto;
+        }
+
+        .jr-rehire-arc {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 168px;
+            border-radius: 180px 180px 0 0;
+            background: linear-gradient(90deg, #c8102e 0%, #f97316 34%, #facc15 58%, #16a34a 100%);
+            overflow: hidden;
+        }
+
+        .jr-rehire-arc::after {
+            content: "";
+            position: absolute;
+            left: 34px;
+            right: 34px;
+            bottom: 0;
+            height: 116px;
+            border-radius: 140px 140px 0 0;
+            background: #ffffff;
+        }
+
+        .jr-rehire-needle {
+            position: absolute;
+            left: calc(50% - 2px);
+            bottom: 8px;
+            width: 4px;
+            height: 112px;
+            border-radius: 999px;
+            background: var(--jr-navy);
+            transform-origin: 50% 104px;
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55);
+        }
+
+        .jr-rehire-center {
+            position: absolute;
+            left: calc(50% - 13px);
+            bottom: 0;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: var(--jr-navy);
+            border: 5px solid #ffffff;
+            box-shadow: 0 5px 14px rgba(16, 33, 63, 0.22);
+        }
+
+        .jr-rehire-scale {
+            display: flex;
+            justify-content: space-between;
+            color: var(--jr-muted);
+            font-size: 0.74rem;
+            font-weight: 750;
+            margin-top: 0.38rem;
+        }
+
+        .jr-rehire-badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 0.3rem 0.7rem;
+            font-size: 0.8rem;
+            font-weight: 800;
+            margin-top: 0.45rem;
+            border: 1px solid transparent;
+        }
+
+        .jr-rehire-badge-red {
+            color: #991b1b;
+            background: #fee2e2;
+            border-color: #fecaca;
+        }
+
+        .jr-rehire-badge-orange {
+            color: #9a3412;
+            background: #ffedd5;
+            border-color: #fed7aa;
+        }
+
+        .jr-rehire-badge-yellow {
+            color: #854d0e;
+            background: #fef9c3;
+            border-color: #fde68a;
+        }
+
+        .jr-rehire-badge-green {
+            color: #166534;
+            background: #dcfce7;
+            border-color: #bbf7d0;
+        }
+
+        .jr-rehire-note {
+            color: var(--jr-muted);
+            font-size: 0.84rem;
+            margin-top: 0.45rem;
         }
 
         .jr-sidebar-title {
@@ -589,6 +724,8 @@ def init_db_once(cache_key: str) -> None:
                 status TEXT NOT NULL DEFAULT 'Ativo',
                 data_desligamento TEXT,
                 motivo_desligamento TEXT,
+                probabilidade_recontratacao INTEGER,
+                observacao_recontratacao TEXT,
                 observacoes TEXT,
                 criado_em TEXT NOT NULL,
                 atualizado_em TEXT NOT NULL
@@ -665,7 +802,7 @@ def init_db_once(cache_key: str) -> None:
 
 
 def init_db() -> None:
-    init_db_once(db_cache_key())
+    init_db_once(f"{db_cache_key()}:{SCHEMA_VERSION}")
 
 
 def ensure_employee_columns(conn: DbConnection) -> None:
@@ -683,6 +820,8 @@ def ensure_employee_columns(conn: DbConnection) -> None:
     columns = {
         "data_desligamento": "TEXT",
         "motivo_desligamento": "TEXT",
+        "probabilidade_recontratacao": "INTEGER",
+        "observacao_recontratacao": "TEXT",
     }
     for column, definition in columns.items():
         if column not in existing:
@@ -731,6 +870,11 @@ def safe_int(value: Any, default: int = 0) -> int:
         return int(float(text.replace(",", ".")))
     except ValueError:
         return default
+
+
+def clamp_int(value: Any, default: int = 0, minimum: int = 0, maximum: int = 100) -> int:
+    number = safe_int(value, default)
+    return max(minimum, min(maximum, number))
 
 
 def only_digits(value: Any) -> str:
@@ -806,6 +950,56 @@ def pick_index(options: list[str], value: Any) -> int:
     return options.index(text) if text in options else 0
 
 
+def rehire_score(value: Any) -> int:
+    return clamp_int(value, default=50, minimum=0, maximum=100)
+
+
+def rehire_level(score: int) -> tuple[str, str]:
+    if score <= 10:
+        return "Sem possibilidade de volta", "red"
+    if score <= 35:
+        return "Chance baixa", "orange"
+    if score <= 70:
+        return "Possível com análise", "yellow"
+    return "Boa possibilidade de retorno", "green"
+
+
+def rehire_summary(value: Any) -> str:
+    score = rehire_score(value)
+    label, _ = rehire_level(score)
+    return f"{score}% - {label}"
+
+
+def render_rehire_gauge(employee: dict[str, Any]) -> None:
+    score = rehire_score(employee.get("probabilidade_recontratacao"))
+    label, color = rehire_level(score)
+    angle = -90 + (score * 1.8)
+    note = clean_text(employee.get("observacao_recontratacao")) or "Sem observação específica."
+    st.markdown(
+        f"""
+        <div class="jr-rehire-card">
+            <div class="jr-rehire-head">
+                <div class="jr-rehire-title">Probabilidade de recontratação</div>
+                <div class="jr-rehire-value">{score}%</div>
+            </div>
+            <div class="jr-rehire-gauge" aria-label="Probabilidade de recontratação">
+                <div class="jr-rehire-arc"></div>
+                <div class="jr-rehire-needle" style="transform: rotate({angle:.1f}deg);"></div>
+                <div class="jr-rehire-center"></div>
+            </div>
+            <div class="jr-rehire-scale">
+                <span>0% sem volta</span>
+                <span>50% análise</span>
+                <span>100% retorno</span>
+            </div>
+            <div><span class="jr-rehire-badge jr-rehire-badge-{color}">{html.escape(label)}</span></div>
+            <div class="jr-rehire-note">{html.escape(note)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def clear_cached_data() -> None:
     st.cache_data.clear()
 
@@ -814,6 +1008,10 @@ def normalize_employee_frame(df: pd.DataFrame) -> pd.DataFrame:
     result = df.copy()
     if "contatos_familiares" not in result.columns:
         result["contatos_familiares"] = 0
+    if "probabilidade_recontratacao" not in result.columns:
+        result["probabilidade_recontratacao"] = None
+    if "observacao_recontratacao" not in result.columns:
+        result["observacao_recontratacao"] = ""
     result["contatos_familiares"] = pd.to_numeric(
         result["contatos_familiares"],
         errors="coerce",
@@ -886,8 +1084,17 @@ def update_employee_status(employee_id: str, status: str) -> None:
     clear_cached_data()
 
 
-def terminate_employee(employee_id: str, data_desligamento: date, motivo: str, observacoes: str) -> None:
+def terminate_employee(
+    employee_id: str,
+    data_desligamento: date,
+    motivo: str,
+    observacoes: str,
+    probabilidade_recontratacao: int,
+    observacao_recontratacao: str,
+) -> None:
     now = datetime.now().isoformat(timespec="seconds")
+    probability = rehire_score(probabilidade_recontratacao)
+    rehire_note = clean_text(observacao_recontratacao)
     with get_connection() as conn:
         conn.execute(
             """
@@ -895,6 +1102,8 @@ def terminate_employee(employee_id: str, data_desligamento: date, motivo: str, o
             SET status = 'Desligado',
                 data_desligamento = ?,
                 motivo_desligamento = ?,
+                probabilidade_recontratacao = ?,
+                observacao_recontratacao = ?,
                 observacoes = CASE
                     WHEN COALESCE(observacoes, '') = '' THEN ?
                     ELSE observacoes || CHAR(10) || ?
@@ -905,6 +1114,8 @@ def terminate_employee(employee_id: str, data_desligamento: date, motivo: str, o
             (
                 date_to_db(data_desligamento),
                 clean_text(motivo),
+                probability,
+                rehire_note,
                 clean_text(observacoes),
                 clean_text(observacoes),
                 now,
@@ -916,7 +1127,32 @@ def terminate_employee(employee_id: str, data_desligamento: date, motivo: str, o
             employee_id,
             "Desligamento",
             f"Funcionário desligado em {format_date_br(data_desligamento)}",
-            f"Motivo: {motivo}. {clean_text(observacoes)}",
+            f"Motivo: {motivo}. Recontratação: {rehire_summary(probability)}. {rehire_note or clean_text(observacoes)}",
+        )
+    clear_cached_data()
+
+
+def update_rehire_assessment(employee_id: str, probabilidade_recontratacao: int, observacao_recontratacao: str) -> None:
+    probability = rehire_score(probabilidade_recontratacao)
+    rehire_note = clean_text(observacao_recontratacao)
+    now = datetime.now().isoformat(timespec="seconds")
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE employees
+            SET probabilidade_recontratacao = ?,
+                observacao_recontratacao = ?,
+                atualizado_em = ?
+            WHERE id = ?
+            """,
+            (probability, rehire_note, now, employee_id),
+        )
+        add_history(
+            conn,
+            employee_id,
+            "Recontratação",
+            f"Probabilidade atualizada: {rehire_summary(probability)}",
+            rehire_note or "Sem observação.",
         )
     clear_cached_data()
 
@@ -931,6 +1167,8 @@ def reactivate_employee(employee_id: str, observacoes: str) -> None:
             SET status = 'Ativo',
                 data_desligamento = NULL,
                 motivo_desligamento = NULL,
+                probabilidade_recontratacao = NULL,
+                observacao_recontratacao = NULL,
                 observacoes = CASE
                     WHEN ? = '' THEN observacoes
                     WHEN COALESCE(observacoes, '') = '' THEN ?
@@ -2018,6 +2256,9 @@ def render_employee_details(employee_id: str) -> None:
     col3.metric("Setor", clean_text(employee["setor"]) or "-")
     col4.metric("Admissão", format_date_br(employee["data_admissao"]) or "-")
 
+    if clean_text(employee.get("status")) == "Desligado":
+        render_rehire_gauge(employee)
+
     details = {
         "RG": employee["rg"],
         "Nascimento": format_date_br(employee["data_nascimento"]),
@@ -2046,6 +2287,9 @@ def render_employee_details(employee_id: str) -> None:
         "Motivo do desligamento": employee.get("motivo_desligamento"),
         "Observações": employee["observacoes"],
     }
+    if clean_text(employee.get("status")) == "Desligado":
+        details["Probabilidade de recontratação"] = rehire_summary(employee.get("probabilidade_recontratacao"))
+        details["Observação de recontratação"] = employee.get("observacao_recontratacao")
 
     detail_df = pd.DataFrame(
         [{"Campo": key, "Informação": value or "-"} for key, value in details.items()]
@@ -2806,6 +3050,7 @@ def build_employee_report(df: pd.DataFrame) -> pd.DataFrame:
     report["Celular"] = report["celular"].apply(format_phone)
     report["Admissão"] = report["data_admissao"].apply(format_date_br)
     report["Desligamento"] = report["data_desligamento"].apply(format_date_br) if "data_desligamento" in report.columns else ""
+    report["Recontratação"] = report["probabilidade_recontratacao"].apply(rehire_summary) if "probabilidade_recontratacao" in report.columns else ""
     return report.rename(
         columns={
             "nome": "Funcionário",
@@ -2892,7 +3137,7 @@ def render_reports_tab(
         render_report_downloads(
             "Funcionários",
             employee_report,
-            ["Funcionário", "CPF", "Função", "Setor", "Matrícula", "Admissão", "Status", "Gestor", "Desligamento"],
+            ["Funcionário", "CPF", "Função", "Setor", "Matrícula", "Admissão", "Status", "Gestor", "Desligamento", "Recontratação"],
             "relatorio_funcionarios_jr",
         )
         render_report_downloads(
@@ -2936,6 +3181,19 @@ def render_termination_form(employee_id: str, employee: dict[str, Any]) -> None:
                 format="DD/MM/YYYY",
             )
             motivo = col2.selectbox("Motivo", TERMINATION_REASON_OPTIONS)
+            probabilidade_recontratacao = st.slider(
+                "Probabilidade de recontratação",
+                min_value=0,
+                max_value=100,
+                value=50,
+                step=5,
+                help="0% fica vermelho e significa sem possibilidade de volta. 100% fica verde.",
+            )
+            observacao_recontratacao = st.text_area(
+                "Observação sobre possível retorno",
+                placeholder="Ex.: bom histórico, pode voltar em vaga futura; ou sem possibilidade de volta.",
+                height=80,
+            )
             observacoes = st.text_area("Observações do desligamento", height=90)
             confirmacao = st.text_input("Digite DESLIGAR para confirmar")
             submitted = st.form_submit_button("Confirmar desligamento", type="primary", width="stretch")
@@ -2944,7 +3202,14 @@ def render_termination_form(employee_id: str, employee: dict[str, Any]) -> None:
             if confirmacao.strip().upper() != "DESLIGAR":
                 st.error("Digite DESLIGAR para confirmar o desligamento.")
                 return
-            terminate_employee(employee_id, data_desligamento, motivo, observacoes)
+            terminate_employee(
+                employee_id,
+                data_desligamento,
+                motivo,
+                observacoes,
+                probabilidade_recontratacao,
+                observacao_recontratacao,
+            )
             st.success("Funcionário desligado com sucesso.")
             st.rerun()
 
@@ -2963,7 +3228,7 @@ def filter_terminated_employees(df: pd.DataFrame, term: str) -> pd.DataFrame:
     def matches(row: pd.Series) -> bool:
         searchable = " ".join(
             clean_text(row.get(field)).lower()
-            for field in ["nome", "cpf", "cargo", "setor", "matricula", "motivo_desligamento"]
+            for field in ["nome", "cpf", "cargo", "setor", "matricula", "motivo_desligamento", "observacao_recontratacao"]
         )
         if term_clean in searchable:
             return True
@@ -2980,6 +3245,7 @@ def render_terminated_table(df: pd.DataFrame) -> None:
     view = df.copy()
     view["CPF"] = view["cpf"].apply(format_cpf)
     view["Desligamento"] = view["data_desligamento"].apply(format_date_br)
+    view["Recontratação"] = view["probabilidade_recontratacao"].apply(rehire_summary)
     view = view.rename(
         columns={
             "nome": "Nome",
@@ -2990,13 +3256,40 @@ def render_terminated_table(df: pd.DataFrame) -> None:
         }
     )
     st.dataframe(
-        view[["Nome", "CPF", "Função", "Setor", "Matrícula", "Desligamento", "Motivo"]],
+        view[["Nome", "CPF", "Função", "Setor", "Matrícula", "Desligamento", "Motivo", "Recontratação"]],
         hide_index=True,
         width="stretch",
     )
 
 
-def render_reactivation_form(employee_id: str) -> None:
+def render_rehire_assessment_form(employee_id: str, employee: dict[str, Any]) -> None:
+    with st.expander("Editar probabilidade de recontratação"):
+        with st.form("rehire_assessment_form", clear_on_submit=False):
+            probability = st.slider(
+                "Probabilidade de recontratação",
+                min_value=0,
+                max_value=100,
+                value=rehire_score(employee.get("probabilidade_recontratacao")),
+                step=5,
+                help="0% fica vermelho e significa sem possibilidade de volta. 100% fica verde.",
+            )
+            note = st.text_area(
+                "Observação",
+                value=clean_text(employee.get("observacao_recontratacao")),
+                height=90,
+            )
+            submitted = st.form_submit_button("Salvar probabilidade", type="primary", width="stretch")
+
+        if submitted:
+            update_rehire_assessment(employee_id, probability, note)
+            st.success("Probabilidade de recontratação atualizada.")
+            st.rerun()
+
+
+def render_reactivation_form(employee_id: str, employee: dict[str, Any]) -> None:
+    score = rehire_score(employee.get("probabilidade_recontratacao"))
+    if score <= 10:
+        st.warning("Este desligado está marcado como sem possibilidade de volta. Aumente a probabilidade antes de reativar.")
     with st.expander("Reativar funcionário"):
         with st.form("reactivation_form", clear_on_submit=False):
             observacoes = st.text_area(
@@ -3005,9 +3298,17 @@ def render_reactivation_form(employee_id: str) -> None:
                 height=90,
             )
             confirmacao = st.text_input("Digite REATIVAR para confirmar")
-            submitted = st.form_submit_button("Reativar funcionário", type="primary", width="stretch")
+            submitted = st.form_submit_button(
+                "Reativar funcionário",
+                type="primary",
+                width="stretch",
+                disabled=score <= 10,
+            )
 
         if submitted:
+            if score <= 10:
+                st.error("Sem possibilidade de volta. Atualize a probabilidade antes de reativar.")
+                return
             if confirmacao.strip().upper() != "REATIVAR":
                 st.error("Digite REATIVAR para confirmar.")
                 return
@@ -3041,7 +3342,10 @@ def render_terminated_tab(df: pd.DataFrame) -> None:
         key="terminated_selected_employee",
     )
     render_employee_details(selected_id)
-    render_reactivation_form(selected_id)
+    selected_employee = get_employee(selected_id)
+    if selected_employee:
+        render_rehire_assessment_form(selected_id, selected_employee)
+        render_reactivation_form(selected_id, selected_employee)
 
 
 def render_edit_tab(df: pd.DataFrame) -> None:
