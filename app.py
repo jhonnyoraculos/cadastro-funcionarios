@@ -133,6 +133,11 @@ def apply_theme() -> None:
             --jr-line: #d8e0ee;
             --jr-bg: #f5f7fb;
             --jr-surface: #ffffff;
+            --jr-glass: rgba(255, 255, 255, 0.72);
+            --jr-glass-strong: rgba(255, 255, 255, 0.86);
+            --jr-glass-line: rgba(255, 255, 255, 0.72);
+            --jr-shadow-soft: 0 14px 38px rgba(16, 33, 63, 0.09);
+            --jr-shadow-lift: 0 22px 55px rgba(16, 33, 63, 0.13);
             --jr-soft-red: #fff0f3;
             --jr-soft-green: #ecfdf3;
             --jr-green: #047857;
@@ -141,12 +146,15 @@ def apply_theme() -> None:
         }
 
         .stApp {
-            background: var(--jr-bg);
+            background:
+                linear-gradient(180deg, #f8fbff 0%, #eef4fb 46%, #f7faff 100%);
             color: var(--jr-ink);
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
         }
 
         .block-container {
-            padding-top: 0.85rem;
+            padding-top: 1.05rem;
             padding-bottom: 2.25rem;
             max-width: 1240px;
         }
@@ -178,16 +186,32 @@ def apply_theme() -> None:
         }
 
         .jr-header {
+            position: relative;
+            overflow: hidden;
             display: grid;
             grid-template-columns: auto 1fr auto;
             align-items: center;
             gap: 0.95rem;
-            padding: 0.82rem 1rem;
-            margin-bottom: 0.85rem;
-            background: linear-gradient(135deg, var(--jr-navy) 0%, #12346d 63%, var(--jr-red) 100%);
-            border: 1px solid rgba(16, 33, 63, 0.12);
-            border-radius: 10px;
-            box-shadow: 0 10px 30px rgba(7, 27, 58, 0.10);
+            padding: 0.95rem 1.05rem;
+            margin-bottom: 0.95rem;
+            background:
+                linear-gradient(135deg, rgba(7, 27, 58, 0.94) 0%, rgba(18, 52, 109, 0.90) 60%, rgba(200, 16, 46, 0.94) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.24);
+            border-radius: 12px;
+            box-shadow: var(--jr-shadow-lift);
+            backdrop-filter: blur(22px) saturate(155%);
+            -webkit-backdrop-filter: blur(22px) saturate(155%);
+            isolation: isolate;
+        }
+
+        .jr-header::before {
+            content: "";
+            position: absolute;
+            inset: 1px;
+            border-radius: 11px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.20), rgba(255, 255, 255, 0.03));
+            pointer-events: none;
+            z-index: -1;
         }
 
         .jr-title {
@@ -222,10 +246,11 @@ def apply_theme() -> None:
         .jr-header-logo {
             width: 54px;
             height: 54px;
-            border-radius: 10px;
+            border-radius: 12px;
             object-fit: contain;
-            background: #ffffff;
+            background: rgba(255, 255, 255, 0.95);
             padding: 0.18rem;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
         }
 
         .jr-section-title {
@@ -244,9 +269,12 @@ def apply_theme() -> None:
             padding: 0.25rem 0.65rem;
             font-weight: 700;
             font-size: 0.75rem;
-            border: 1px solid rgba(255, 255, 255, 0.20);
+            border: 1px solid rgba(255, 255, 255, 0.32);
             color: #ffffff;
-            background: rgba(255, 255, 255, 0.13);
+            background: rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(18px) saturate(145%);
+            -webkit-backdrop-filter: blur(18px) saturate(145%);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
         }
 
         .jr-pill-red {
@@ -264,17 +292,26 @@ def apply_theme() -> None:
         .jr-kpi-grid {
             display: grid;
             grid-template-columns: repeat(6, minmax(0, 1fr));
-            gap: 0.68rem;
-            margin: 0.15rem 0 0.75rem 0;
+            gap: 0.78rem;
+            margin: 0.15rem 0 0.85rem 0;
         }
 
         .jr-kpi-card {
-            background: #ffffff;
-            border: 1px solid var(--jr-line);
-            border-radius: 10px;
-            padding: 0.72rem 0.82rem;
-            min-height: 74px;
-            box-shadow: 0 8px 20px rgba(16, 33, 63, 0.045);
+            background: var(--jr-glass);
+            border: 1px solid var(--jr-glass-line);
+            border-radius: 12px;
+            padding: 0.78rem 0.86rem;
+            min-height: 78px;
+            box-shadow: var(--jr-shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(22px) saturate(150%);
+            -webkit-backdrop-filter: blur(22px) saturate(150%);
+            transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+        }
+
+        .jr-kpi-card:hover {
+            transform: translateY(-1px);
+            background: rgba(255, 255, 255, 0.86);
+            box-shadow: var(--jr-shadow-lift), inset 0 1px 0 rgba(255, 255, 255, 0.88);
         }
 
         .jr-kpi-label {
@@ -293,23 +330,28 @@ def apply_theme() -> None:
         }
 
         .jr-notice {
-            background: #fff8e8;
+            background: rgba(255, 248, 232, 0.82);
             color: #7c4a03;
-            border: 1px solid #f4db9b;
-            border-radius: 9px;
-            padding: 0.65rem 0.8rem;
-            margin: 0.2rem 0 0.85rem 0;
+            border: 1px solid rgba(244, 219, 155, 0.92);
+            border-radius: 12px;
+            padding: 0.72rem 0.86rem;
+            margin: 0.2rem 0 0.95rem 0;
             font-size: 0.9rem;
             font-weight: 650;
+            box-shadow: 0 12px 28px rgba(124, 74, 3, 0.07);
+            backdrop-filter: blur(18px) saturate(140%);
+            -webkit-backdrop-filter: blur(18px) saturate(140%);
         }
 
         .jr-rehire-card {
-            background: #ffffff;
-            border: 1px solid var(--jr-line);
-            border-radius: 10px;
+            background: var(--jr-glass-strong);
+            border: 1px solid var(--jr-glass-line);
+            border-radius: 12px;
             padding: 0.95rem 1rem 1rem 1rem;
             margin: 0.9rem 0 1rem 0;
-            box-shadow: 0 10px 24px rgba(16, 33, 63, 0.045);
+            box-shadow: var(--jr-shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(22px) saturate(150%);
+            -webkit-backdrop-filter: blur(22px) saturate(150%);
         }
 
         .jr-rehire-head {
@@ -451,26 +493,35 @@ def apply_theme() -> None:
         }
 
         .stTabs [data-baseweb="tab-list"] {
-            gap: 0.3rem;
-            background: #ffffff;
-            border: 1px solid var(--jr-line);
-            border-radius: 10px;
-            padding: 0.24rem;
-            margin-bottom: 0.85rem;
-            box-shadow: 0 8px 20px rgba(16, 33, 63, 0.045);
+            gap: 0.34rem;
+            background: rgba(255, 255, 255, 0.68);
+            border: 1px solid var(--jr-glass-line);
+            border-radius: 12px;
+            padding: 0.28rem;
+            margin-bottom: 1rem;
+            box-shadow: var(--jr-shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.74);
+            backdrop-filter: blur(24px) saturate(150%);
+            -webkit-backdrop-filter: blur(24px) saturate(150%);
         }
 
         .stTabs [data-baseweb="tab"] {
-            border-radius: 8px;
+            border-radius: 10px;
             color: var(--jr-muted);
             font-weight: 700;
-            min-height: 2.2rem;
-            padding: 0 0.95rem;
+            min-height: 2.35rem;
+            padding: 0 1rem;
+            transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+        }
+
+        .stTabs [data-baseweb="tab"]:hover {
+            background: rgba(255, 255, 255, 0.78);
+            color: var(--jr-ink);
         }
 
         .stTabs [aria-selected="true"] {
-            background: var(--jr-red);
+            background: linear-gradient(180deg, #df1637, var(--jr-red));
             color: #ffffff;
+            box-shadow: 0 8px 18px rgba(200, 16, 46, 0.22);
         }
 
         div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stAlert"]) {
@@ -478,16 +529,21 @@ def apply_theme() -> None:
         }
 
         div[data-testid="stAlert"] {
-            border-radius: 8px;
-            border: 1px solid var(--jr-line);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.70);
+            box-shadow: 0 10px 28px rgba(16, 33, 63, 0.055);
+            backdrop-filter: blur(18px) saturate(140%);
+            -webkit-backdrop-filter: blur(18px) saturate(140%);
         }
 
         div[data-testid="stForm"] {
-            background: #ffffff;
-            border: 1px solid var(--jr-line);
-            border-radius: 10px;
+            background: var(--jr-glass-strong);
+            border: 1px solid var(--jr-glass-line);
+            border-radius: 12px;
             padding: 0.9rem 1rem 1rem 1rem;
-            box-shadow: 0 10px 24px rgba(16, 33, 63, 0.045);
+            box-shadow: var(--jr-shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.78);
+            backdrop-filter: blur(22px) saturate(150%);
+            -webkit-backdrop-filter: blur(22px) saturate(150%);
         }
 
         div[data-testid="stForm"] [data-testid="stVerticalBlock"] {
@@ -496,26 +552,55 @@ def apply_theme() -> None:
 
         div.stButton > button[kind="primary"],
         div.stDownloadButton > button[kind="primary"] {
-            background: var(--jr-red);
-            border-color: var(--jr-red);
+            background: linear-gradient(180deg, #e3183a, var(--jr-red));
+            border-color: rgba(200, 16, 46, 0.88);
             color: #ffffff;
             font-weight: 700;
-            border-radius: 8px;
+            border-radius: 10px;
             min-height: 2.55rem;
+            box-shadow: 0 10px 22px rgba(200, 16, 46, 0.22);
+            transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
         }
 
         div.stButton > button[kind="primary"]:hover,
         div.stDownloadButton > button[kind="primary"]:hover {
-            background: var(--jr-red-dark);
-            border-color: var(--jr-red-dark);
+            filter: brightness(0.96);
             color: #ffffff;
+            transform: translateY(-1px);
+            box-shadow: 0 14px 30px rgba(200, 16, 46, 0.28);
+        }
+
+        div.stButton > button,
+        div.stDownloadButton > button {
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid rgba(159, 176, 202, 0.58);
+            border-radius: 10px;
+            color: var(--jr-ink);
+            font-weight: 700;
+            min-height: 2.45rem;
+            box-shadow: 0 10px 24px rgba(16, 33, 63, 0.055), inset 0 1px 0 rgba(255, 255, 255, 0.78);
+            backdrop-filter: blur(18px) saturate(145%);
+            -webkit-backdrop-filter: blur(18px) saturate(145%);
+            transition: background 140ms ease, transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+        }
+
+        div.stButton > button:hover,
+        div.stDownloadButton > button:hover {
+            background: rgba(255, 255, 255, 0.90);
+            border-color: rgba(36, 63, 145, 0.28);
+            color: var(--jr-ink);
+            transform: translateY(-1px);
+            box-shadow: var(--jr-shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.90);
         }
 
         div[data-testid="stMetric"] {
-            background: #ffffff;
-            border: 1px solid var(--jr-line);
-            border-radius: 8px;
+            background: var(--jr-glass);
+            border: 1px solid var(--jr-glass-line);
+            border-radius: 12px;
             padding: 0.72rem 0.82rem;
+            box-shadow: var(--jr-shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(22px) saturate(145%);
+            -webkit-backdrop-filter: blur(22px) saturate(145%);
         }
 
         div[data-testid="stMetric"] label {
@@ -529,9 +614,13 @@ def apply_theme() -> None:
         }
 
         div[data-testid="stDataFrame"] {
-            border: 1px solid var(--jr-line);
-            border-radius: 8px;
+            border: 1px solid rgba(216, 224, 238, 0.88);
+            border-radius: 12px;
             overflow: hidden;
+            box-shadow: 0 12px 28px rgba(16, 33, 63, 0.055);
+            background: rgba(255, 255, 255, 0.76);
+            backdrop-filter: blur(16px) saturate(140%);
+            -webkit-backdrop-filter: blur(16px) saturate(140%);
         }
 
         [data-testid="stTextInput"] [data-baseweb="input"],
@@ -539,17 +628,20 @@ def apply_theme() -> None:
         [data-testid="stDateInput"] [data-baseweb="input"],
         [data-testid="stTextArea"] textarea,
         [data-baseweb="select"] > div {
-            background: #ffffff !important;
-            border: 1.5px solid #9fb0ca !important;
-            border-radius: 7px !important;
-            box-shadow: inset 0 0 0 1px rgba(16, 33, 63, 0.03) !important;
+            background: rgba(255, 255, 255, 0.76) !important;
+            border: 1px solid rgba(140, 158, 185, 0.62) !important;
+            border-radius: 10px !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.62), 0 6px 16px rgba(16, 33, 63, 0.035) !important;
+            backdrop-filter: blur(14px) saturate(135%);
+            -webkit-backdrop-filter: blur(14px) saturate(135%);
+            transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
         }
 
         [data-testid="stTextInput"] [data-baseweb="input"],
         [data-testid="stNumberInput"] [data-baseweb="input"],
         [data-testid="stDateInput"] [data-baseweb="input"],
         [data-baseweb="select"] > div {
-            min-height: 2.45rem;
+            min-height: 2.55rem;
         }
 
         [data-testid="stTextInput"] input,
@@ -574,11 +666,29 @@ def apply_theme() -> None:
         [data-testid="stTextArea"] textarea:focus,
         [data-baseweb="select"] > div:focus-within {
             border-color: var(--jr-red) !important;
-            box-shadow: 0 0 0 2px rgba(200, 16, 46, 0.16) !important;
+            background: rgba(255, 255, 255, 0.96) !important;
+            box-shadow: 0 0 0 3px rgba(200, 16, 46, 0.14), 0 10px 24px rgba(16, 33, 63, 0.08) !important;
+        }
+
+        [data-testid="stSlider"] [data-baseweb="slider"] > div {
+            filter: saturate(1.08);
+        }
+
+        [data-testid="stExpander"] {
+            background: rgba(255, 255, 255, 0.64);
+            border: 1px solid var(--jr-glass-line);
+            border-radius: 12px;
+            box-shadow: 0 10px 24px rgba(16, 33, 63, 0.045);
+            backdrop-filter: blur(18px) saturate(140%);
+            -webkit-backdrop-filter: blur(18px) saturate(140%);
+        }
+
+        [data-testid="stExpander"] details {
+            border: 0 !important;
         }
 
         hr {
-            border-color: var(--jr-line);
+            border-color: rgba(159, 176, 202, 0.36);
         }
 
         @media (max-width: 760px) {
