@@ -2373,6 +2373,13 @@ def summary_chip(value: Any) -> str:
     return f'<span class="jr-summary-chip">{html.escape(text)}</span>'
 
 
+def render_html(markup: str) -> None:
+    if hasattr(st, "html"):
+        st.html(markup)
+    else:
+        st.markdown(markup, unsafe_allow_html=True)
+
+
 def render_summary_cards(title: str, cards: list[dict[str, Any]], empty_text: str, wide: bool = False) -> None:
     count_label = f"{len(cards)} registro" if len(cards) == 1 else f"{len(cards)} registros"
     header = (
@@ -2384,7 +2391,7 @@ def render_summary_cards(title: str, cards: list[dict[str, Any]], empty_text: st
     )
     if not cards:
         markup = f'{header}<div class="jr-summary-empty">{html.escape(empty_text)}</div></div>'
-        st.html(markup) if hasattr(st, "html") else st.markdown(markup, unsafe_allow_html=True)
+        render_html(markup)
         return
 
     grid_class = "jr-summary-grid jr-summary-grid-wide" if wide else "jr-summary-grid"
@@ -2411,7 +2418,7 @@ def render_summary_cards(title: str, cards: list[dict[str, Any]], empty_text: st
             )
         )
     markup = f'{header}<div class="{grid_class}">{"".join(items)}</div></div>'
-    st.html(markup) if hasattr(st, "html") else st.markdown(markup, unsafe_allow_html=True)
+    render_html(markup)
 
 
 def render_summary_tab(
