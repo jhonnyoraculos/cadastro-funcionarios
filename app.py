@@ -2383,7 +2383,8 @@ def render_summary_cards(title: str, cards: list[dict[str, Any]], empty_text: st
         '</div>'
     )
     if not cards:
-        st.markdown(f'{header}<div class="jr-summary-empty">{html.escape(empty_text)}</div></div>', unsafe_allow_html=True)
+        markup = f'{header}<div class="jr-summary-empty">{html.escape(empty_text)}</div></div>'
+        st.html(markup) if hasattr(st, "html") else st.markdown(markup, unsafe_allow_html=True)
         return
 
     grid_class = "jr-summary-grid jr-summary-grid-wide" if wide else "jr-summary-grid"
@@ -2392,20 +2393,25 @@ def render_summary_cards(title: str, cards: list[dict[str, Any]], empty_text: st
         chips = "".join(summary_chip(value) for value in card.get("chips", []))
         accent = html.escape(clean_text(card.get("accent")) or "#c8102e")
         items.append(
-            f"""
-            <div class="jr-summary-card" style="--summary-accent:{accent};">
-                <div class="jr-summary-top">
-                    <div>
-                        <div class="jr-summary-name">{html.escape(clean_text(card.get("name")) or "-")}</div>
-                        <div class="jr-summary-subtitle">{html.escape(clean_text(card.get("subtitle")) or "-")}</div>
-                    </div>
-                    <div class="jr-summary-date">{html.escape(clean_text(card.get("date")) or "-")}</div>
-                </div>
-                <div class="jr-summary-meta">{chips}</div>
-            </div>
-            """
+            '<div class="jr-summary-card" style="--summary-accent:{accent};">'
+            '<div class="jr-summary-top">'
+            '<div>'
+            '<div class="jr-summary-name">{name}</div>'
+            '<div class="jr-summary-subtitle">{subtitle}</div>'
+            '</div>'
+            '<div class="jr-summary-date">{date_text}</div>'
+            '</div>'
+            '<div class="jr-summary-meta">{chips}</div>'
+            '</div>'.format(
+                accent=accent,
+                name=html.escape(clean_text(card.get("name")) or "-"),
+                subtitle=html.escape(clean_text(card.get("subtitle")) or "-"),
+                date_text=html.escape(clean_text(card.get("date")) or "-"),
+                chips=chips,
+            )
         )
-    st.markdown(f'{header}<div class="{grid_class}">{"".join(items)}</div></div>', unsafe_allow_html=True)
+    markup = f'{header}<div class="{grid_class}">{"".join(items)}</div></div>'
+    st.html(markup) if hasattr(st, "html") else st.markdown(markup, unsafe_allow_html=True)
 
 
 def render_summary_tab(
